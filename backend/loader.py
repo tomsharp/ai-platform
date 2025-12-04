@@ -1,7 +1,5 @@
-# model_loader.py
 import logging
-from copy import deepcopy
-from typing import Callable, Tuple
+from typing import Callable
 
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -13,9 +11,11 @@ TEMPERATURE = 0.7
 TOP_P = 0.9
 
 def load_model_predictor(model_id: str) -> Callable[[str], str]:
+    logger.info(f"Loading model {model_id}...")
     tokenizer = AutoTokenizer.from_pretrained(model_id)
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model = AutoModelForCausalLM.from_pretrained(model_id).to(device)
+    logger.info(f"Model {model_id} loaded on {device}")
 
     def predict(prompt: str) -> str:
         inputs = tokenizer(prompt, return_tensors="pt").to(device)

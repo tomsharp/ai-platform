@@ -5,13 +5,9 @@ from time import perf_counter
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-from model_loader import load_model_predictor
+from loader import load_model_predictor
 
-logger = logging.getLogger("model_api")
-logging.basicConfig(
-    level=logging.INFO,
-    format='{"ts":"%(asctime)s","level":"%(levelname)s","msg":"%(message)s"}',
-)
+logger = logging.getLogger(__name__)
 
 MODEL_ID = os.getenv("MODEL_ID", "TinyLlama/TinyLlama-1.1B-Chat-v1.0")
 DEVICE_PREF = os.getenv("DEVICE", "auto")  # "cpu" | "cuda" | "auto"
@@ -29,7 +25,7 @@ class PredictResponse(BaseModel):
 
 @app.on_event("startup")
 def startup_event():
-    logger.info("Starting up, loading model...")
+    logger.info("Starting up...")
     global PREDICT_FN
     PREDICT_FN = load_model_predictor(MODEL_ID)
     logger.info("Startup complete, model loaded.")

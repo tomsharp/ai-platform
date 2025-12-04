@@ -1,0 +1,38 @@
+version: 1
+disable_existing_loggers: false
+
+formatters:
+  json:
+    format: >
+      {"ts":"%(asctime)s", "level":"%(levelname)s", "logger":"%(name)s", "msg":"%(message)s", "module":"%(module)s", "func":"%(funcName)s", "line":%(lineno)d}
+
+handlers:
+  console:
+    class: logging.StreamHandler
+    formatter: json
+    stream: ext://sys.stdout
+
+loggers:
+  uvicorn:
+    level: INFO
+    handlers: [console]
+    propagate: false
+
+  uvicorn.error:
+    level: INFO
+    handlers: [console]
+    propagate: false
+
+  uvicorn.access:
+    level: INFO
+    handlers: [console]
+    propagate: false
+
+  api:
+    level: INFO
+    handlers: [console]
+    propagate: false
+
+root:
+  level: INFO
+  handlers: [console]
