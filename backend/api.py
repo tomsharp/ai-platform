@@ -1,13 +1,16 @@
 import os
 import logging
+from datetime import timedelta
 from time import perf_counter
 import uuid
 from contextlib import asynccontextmanager
+from typing import Annotated
 
-
-from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
+from fastapi import FastAPI, HTTPException, Request, Depends, status
+from fastapi.security import OAuth2PasswordRequestForm
 
+from auth import authenticate_user, create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES, get_current_user, Token
 from loader import load_model_predictor
 
 
@@ -38,19 +41,6 @@ async def lifespan(app: FastAPI):
     yield
 
 app = FastAPI(title="Model API", version="0.1.0", lifespan=lifespan)
-
-
-@app.get("/")
-def root():
-    return {"message": "Model API"}
-
-
-@app.get("/health")
-def health():
-    return {
-        "status": "ok" if hasattr(app.state, "predictor") else "loading"
-    }
-
 
 @app.middleware("http")
 async def middleware(request, call_next):
@@ -91,12 +81,37 @@ async def middleware(request, call_next):
     response.headers["x-request-id"] = request_id
     return response
 
+@app.get("/")
+def root():
+    return {"message": "Model API"}
 
-@app.post("/predict", response_model=PredictResponse)
+@app.get("/health")
+def health():
+    return {
+        "status": "ok" if hasattr(app.state, "predictor") else "loading"
+    }
+
+@app.post("/token")
+async def login_for_access_token(
+    form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
+) -> Token:
+    user = authenticate_user(form_data.username, form_data.password)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user.username}, expires_delta=access_token_expires
+    )
+    return Token(access_token=access_token, token_type="bearer")
+
+@app.post("/predict", response_model=PredictResponse, dependencies=[Depends(get_current_user)])
 async def predict(payload: PredictRequest, request: Request):
     if not hasattr(app.state, "predictor"):
         raise HTTPException(status_code=503, detail="Model not loaded yet")
-
     try:
         model_start = perf_counter()
         output = app.state.predictor(payload.text)
