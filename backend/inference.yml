@@ -15,7 +15,7 @@ spec:
         app: "${APP_NAME}"
     spec:
       nodeSelector:
-        pool: cpu # Switch to 'pool: gpu' if using GPU nodes
+        pool: cpu
       containers:
         - name: "${APP_NAME}"
           image: "${IMAGE}"
@@ -29,7 +29,6 @@ spec:
             limits:
               cpu: "1"
               memory: "8Gi"
-              # nvidia.com/gpu: 1 # Uncomment if using GPU nodes
           env:
             - name: MODEL_ID
               value: "${MODEL_ID}"

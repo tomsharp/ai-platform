@@ -10,7 +10,6 @@ TF_VAR_image=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${REGISTRY_NA
 TF_VAR_region=${AWS_REGION}
 # app env variables
 MODEL_ID="TinyLlama/TinyLlama-1.1B-Chat-v1.0"
-DEVICE_PREF="cpu"
 
 
 setup-ecr: 
@@ -30,8 +29,7 @@ deploy-api: setup-kubectl
 	kubectl get namespace ${APP_NAME} >/dev/null 2>&1 || kubectl create namespace ${APP_NAME}
 	kubectl config set-context --current --namespace=${APP_NAME}
 	@IMAGE=$${AWS_ACCOUNT_ID}.dkr.ecr.$${AWS_REGION}.amazonaws.com/$${APP_NAME}:latest; \
-	APP_NAME=$${APP_NAME} IMAGE=$${IMAGE} MODEL_ID=$${MODEL_ID} DEVICE_PREF=$${DEVICE_PREF} \
-	APP_NAME=$(APP_NAME) IMAGE=$$IMAGE MODEL_ID=$(MODEL_ID) DEVICE_PREF=$(DEVICE_PREF) \
+	APP_NAME=$(APP_NAME) IMAGE=$$IMAGE MODEL_ID=$(MODEL_ID) \
 	envsubst < inference.yml | kubectl -n $(APP_NAME) apply -f -
 
 deploy-all: setup-infra deploy-image deploy-api

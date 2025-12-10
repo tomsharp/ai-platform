@@ -31,17 +31,6 @@ module "eks" {
         pool = "cpu"
       }
     }
-    # Uncomment the following to add a GPU node group
-    # gpu = {
-    #   desired_capacity = 1
-    #   min_capacity     = 1
-    #   max_capacity     = 2
-    #   instance_types = ["g4dn.xlarge"]
-    #   capacity_type  = "ON_DEMAND" 
-    #   labels = {
-    #     pool = "gpu"
-    #   }
-    # }
   }
   depends_on         = [module.network]
 }

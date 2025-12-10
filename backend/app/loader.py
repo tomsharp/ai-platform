@@ -1,7 +1,6 @@
 import logging
 from typing import Callable
 
-import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 logger = logging.getLogger(__name__)
@@ -10,12 +9,12 @@ MAX_NEW_TOKENS = 150
 TEMPERATURE = 0.7
 TOP_P = 0.9
 
-def load_model_predictor(model_id: str, device_pref: str) -> Callable[[str], str]:
+def load_model_predictor(model_id: str) -> Callable[[str], str]:
     logger.info(f"Loading model {model_id}")
     tokenizer = AutoTokenizer.from_pretrained(model_id)
-    device = device_pref if device_pref in ["cpu", "cuda"] else ("cuda" if torch.cuda.is_available() else "cpu")
+    device = "cpu"
     model = AutoModelForCausalLM.from_pretrained(model_id).to(device)
-    logger.info(f"Model {model_id} loaded on {device}")
+    logger.info(f"Model {model_id} loaded successfully")
 
     def predict(prompt: str) -> str:
         inputs = tokenizer(prompt, return_tensors="pt").to(device)

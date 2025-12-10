@@ -20,10 +20,7 @@ logging.basicConfig(level=logging.INFO, format=FORMAT)
 
 logger = logging.getLogger(__name__)
 
-
 MODEL_ID = os.getenv("MODEL_ID", "TinyLlama/TinyLlama-1.1B-Chat-v1.0")
-DEVICE_PREF = os.getenv("DEVICE", "auto")  # "cpu" | "cuda" | "auto"
-
 
 class PredictRequest(BaseModel):
     text: str
@@ -36,7 +33,7 @@ class PredictResponse(BaseModel):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("API starting up")
-    app.state.predictor = load_model_predictor(MODEL_ID, DEVICE_PREF)
+    app.state.predictor = load_model_predictor(MODEL_ID)
     logger.info("Startup complete")
     yield
 
