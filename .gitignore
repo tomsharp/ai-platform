@@ -1,4 +1,4 @@
-*/db.json
+*db.json
 archive
 *.venv
 *__pycache__
@@ -7,3 +7,4 @@ archive
 *backend.tf
 *.terraform*
 *terraform.*
+*backend.tf

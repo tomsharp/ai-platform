@@ -1,23 +1,51 @@
 include .env 
 
 .EXPORT_ALL_VARIABLES:
-APP_NAME=my-app-name
-
+# tf env variables
+APP_NAME=inf-api
 TAG=latest
 TF_VAR_app_name=${APP_NAME}
 REGISTRY_NAME=${APP_NAME}
 TF_VAR_image=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${REGISTRY_NAME}:${TAG}
 TF_VAR_region=${AWS_REGION}
+# app env variables
+MODEL_ID="TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+DEVICE_PREF="cpu"
 
 
 setup-ecr: 
-	cd infra/setup && terraform init && terraform apply -auto-approve
+	cd infra/ecr && terraform init && terraform apply -auto-approve
 
-deploy-container:
+setup-cluster:
+	cd infra/cluster && terraform init && terraform apply -auto-approve
+
+setup-infra: setup-ecr setup-cluster
+
+deploy-image:
 	cd app && sh deploy.sh
 
-deploy-service:
-	cd infra/app && terraform init && terraform apply -auto-approve
+deploy-api: setup-kubectl
+	aws eks update-kubeconfig --region ${AWS_REGION} --name ${APP_NAME}
+	kubectl get svc
+	kubectl get namespace ${APP_NAME} >/dev/null 2>&1 || kubectl create namespace ${APP_NAME}
+	kubectl config set-context --current --namespace=${APP_NAME}
+	@IMAGE=$${AWS_ACCOUNT_ID}.dkr.ecr.$${AWS_REGION}.amazonaws.com/$${APP_NAME}:latest; \
+	APP_NAME=$${APP_NAME} IMAGE=$${IMAGE} MODEL_ID=$${MODEL_ID} DEVICE_PREF=$${DEVICE_PREF} \
+	APP_NAME=$(APP_NAME) IMAGE=$$IMAGE MODEL_ID=$(MODEL_ID) DEVICE_PREF=$(DEVICE_PREF) \
+	envsubst < inference.yml | kubectl -n $(APP_NAME) apply -f -
 
-destroy-service:
-	cd infra/app && terraform init && terraform destroy -auto-approve
+deploy-all: setup-infra deploy-image deploy-api
+
+teardown-api:
+	kubectl -n ${APP_NAME} delete -f inference.yml
+	kubectl delete namespace ${APP_NAME}
+
+destroy-ecr:
+	cd infra/ecr && terraform destroy -auto-approve
+
+destroy-cluster:
+	cd infra/cluster && terraform init && terraform destroy -auto-approve
+
+destroy-infra: destroy-cluster destroy-ecr
+
+destroy-all: teardown-api destroy-infra
