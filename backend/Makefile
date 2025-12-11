@@ -23,7 +23,7 @@ setup-infra: setup-ecr setup-cluster
 deploy-image:
 	cd app && sh deploy.sh
 
-deploy-api: setup-kubectl
+deploy-api:
 	aws eks update-kubeconfig --region ${AWS_REGION} --name ${APP_NAME}
 	kubectl get svc
 	kubectl get namespace ${APP_NAME} >/dev/null 2>&1 || kubectl create namespace ${APP_NAME}
@@ -44,6 +44,4 @@ destroy-ecr:
 destroy-cluster:
 	cd infra/cluster && terraform init && terraform destroy -auto-approve
 
-destroy-infra: destroy-cluster destroy-ecr
-
-destroy-all: teardown-api destroy-infra
+destroy-all: destroy-cluster destroy-ecr
