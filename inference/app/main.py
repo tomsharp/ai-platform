@@ -1,14 +1,10 @@
 import os
 import logging
-from datetime import timedelta
 from time import perf_counter
-import uuid
 from contextlib import asynccontextmanager
-from typing import Annotated
 
 from pydantic import BaseModel
-from fastapi import FastAPI, HTTPException, Request, Depends, status
-from fastapi.security import OAuth2PasswordRequestForm
+from fastapi import FastAPI, HTTPException, Request
 
 from loader import load_model_predictor
 

@@ -32,8 +32,6 @@ spec:
           env:
             - name: MODEL_ID
               value: "${MODEL_ID}"
-            - name: DEVICE_PREF
-              value: "${DEVICE_PREF}"
           readinessProbe:
             httpGet:
               path: /health

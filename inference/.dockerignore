@@ -1,9 +1,12 @@
+tests/
+
 # Python envs
 .venv
 venv
 env
 __pycache__
 *.py[cod]
+*.pyc
 *.pyo
 *.pyd
 *.pytest_cache
