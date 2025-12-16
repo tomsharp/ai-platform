@@ -7,9 +7,6 @@ CLUSTER_NAME=ai-platform
 REGISTRY=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
 REPOSITORY=ai-platform/$(APP_NAME)
 TAG=latest
-# tf env variables
-TF_VAR_app_name=$(APP_NAME)
-TF_VAR_region=$(AWS_REGION)
 # containter/app env variables
 MODEL_ID ?= TinyLlama/TinyLlama-1.1B-Chat-v1.0
 
@@ -18,7 +15,7 @@ create-repository:
 	aws ecr create-repository --repository-name $(REPOSITORY) --region $(AWS_REGION) || true
 
 deploy-image:
-	sh deploy.sh
+	sh image.sh
 
 deploy-api:
 	aws eks update-kubeconfig --region $(AWS_REGION) --name $(CLUSTER_NAME)
