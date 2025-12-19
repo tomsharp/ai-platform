@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import uuid
+import enum
 from datetime import datetime
 
 from sqlalchemy import (
-    String, Boolean, DateTime, Integer, ForeignKey, UniqueConstraint, Text
+    String, Boolean, DateTime, Integer, ForeignKey, UniqueConstraint, Text, CheckConstraint
 )
+from sqlalchemy import Enum as sqlalchemyEnum
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -79,6 +81,28 @@ class UserGroup(Base):
     group: Mapped["Group"] = relationship(back_populates="members")
 
 # -------------------------
+# Model Provider credentials
+# -------------------------
+class ProviderEnum(enum.Enum):
+    openai = "openai"
+    internal = "internal"
+
+class ProviderAccount(Base):
+    __tablename__ = "provider_accounts"
+    __table_args__ = (
+        UniqueConstraint("provider", name="uq_provider_account"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    provider: Mapped[ProviderEnum] = mapped_column(
+        sqlalchemyEnum(ProviderEnum, name="provider_enum"),
+        index=True,
+        nullable=False,
+    )
+    api_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+
+# -------------------------
 # Models / Versions
 # -------------------------
 
@@ -88,6 +112,7 @@ class Model(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(String(120), unique=True, index=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    documentation_url: Mapped[str] = mapped_column(String(300), nullable=True)
 
     versions: Mapped[list["ModelVersion"]] = relationship(
         back_populates="model",
@@ -96,13 +121,31 @@ class Model(Base):
 
 class ModelVersion(Base):
     __tablename__ = "model_versions"
-    __table_args__ = (UniqueConstraint("model_id", "version", name="uq_model_version"),)
+    __table_args__ = (
+        UniqueConstraint("model_id", "version", name="uq_model_version"),
+        CheckConstraint(
+            """
+            (provider = 'internal' AND internal_endpoint_url IS NOT NULL)
+            OR
+            (provider != 'internal' AND internal_endpoint_url IS NULL)
+            """,
+            name="ck_internal_endpoint_required_for_internal_provider",
+        ),
+    )
+
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     model_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("models.id"), index=True)
     version: Mapped[str] = mapped_column(String(120), index=True)
 
+    provider: Mapped[str] = mapped_column(String(64), index=True)
+    provider_account_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("provider_accounts.id"), index=True
+    )
+    internal_endpoint_url: Mapped[str | None] = mapped_column(String(400), nullable=True)
+
     model: Mapped["Model"] = relationship(back_populates="versions")
+    provider_account: Mapped["ProviderAccount"] = relationship()
 
 # -------------------------
 # Rate limits
@@ -144,19 +187,3 @@ class GroupModelPermission(Base):
     group: Mapped["Group"] = relationship(back_populates="model_perms")
     model_version: Mapped["ModelVersion"] = relationship()
     policy: Mapped["RateLimitPolicy"] = relationship()
-
-# -------------------------
-# Model Provider credentials
-# -------------------------
-class ProviderAccount(Base):
-    __tablename__ = "provider_accounts"
-    __table_args__ = (
-        UniqueConstraint("provider", name="uq_provider_account"),
-    )
-
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    provider: Mapped[str] = mapped_column(String(64), index=True)  # openai/anthropic/...
-
-    api_key_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    username: Mapped[str | None] = mapped_column(String(120), nullable=True)
-    password_hash: Mapped[str | None] = mapped_column(String(200), nullable=True)

@@ -16,22 +16,22 @@ from . import models
 # ---------- helpers ----------
 password_hash = PasswordHash.recommended() # ensure same as auth.py
 
-def hash_password(password: str) -> str:
-    return password_hash.hash(password)
-
 def create_tables():
     Base.metadata.create_all(bind=engine)
 
+def hash_password(password: str) -> str:
+    return password_hash.hash(password)
+
+def make_default_password() -> tuple[str, str]:
+    raw = f"{secrets.token_urlsafe(10)}"
+    return raw, hash_password(raw)
 
 def hash_api_key(raw: str) -> str:
-    # Simple SHA-256 hash for demo. In production, prefer HMAC w/ server-side pepper.
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
-
 
 def make_api_key(prefix: str = "gw") -> tuple[str, str]:
     raw = f"{prefix}_{secrets.token_urlsafe(32)}"
     return raw, hash_api_key(raw)
-
 
 def ensure_one(session, model_cls, where_clause, create_kwargs: dict):
     obj = session.execute(select(model_cls).where(where_clause)).scalar_one_or_none()
@@ -143,23 +143,26 @@ def seed():
             )
 
             # ----- Users -----
+            admin_pwd, admin_pwd_hash = make_default_password()
             admin = ensure_one(
                 session,
                 models.User,
                 models.User.username == "admin",
-                {"username": "admin", "password_hash": None},
+                {"username": "admin", "password_hash": admin_pwd_hash},
             )
+            tom_pwd, tom_pwd_hash = make_default_password()
             tom = ensure_one(
                 session,
                 models.User,
                 models.User.username == "tom",
-                {"username": "tom", "password_hash": hash_password( "password")},
+                {"username": "tom", "password_hash": tom_pwd_hash},
             )
+            chatbot_svc_pwd, chatbot_svc_pwd_hash = make_default_password()
             chatbot_svc = ensure_one(
                 session,
                 models.User,
                 models.User.username == "chatbot-service",
-                {"username": "chatbot-service", "password_hash": None},
+                {"username": "chatbot-service", "password_hash": chatbot_svc_pwd_hash},
             )
             ensure_membership(session, admin.id, admin_group.id)
             ensure_membership(session, tom.id, devs_group.id)
@@ -170,33 +173,51 @@ def seed():
             tom_key = ensure_api_key(session, tom)
             svc_key = ensure_api_key(session, chatbot_svc)
 
+            # ----- Provider accounts (very simple v1) -----
+            internal = ensure_one(
+                session,
+                models.ProviderAccount,
+                (models.ProviderAccount.provider == "internal"),
+                {
+                    "provider": "internal",
+                },
+            )
+
+            openai_key = os.environ["OPENAI_API_KEY"]
+            openai = ensure_one(
+                session,
+                models.ProviderAccount,
+                (models.ProviderAccount.provider == "openai"),
+                {
+                    "provider": "openai",
+                    "api_key": openai_key,
+                },
+            )
+
             # ----- Models + Versions -----
             # Models
-            tiny_llama = ensure_one(
-                session,
-                models.Model,
-                models.Model.name == "tiny-llama",
-                {"name": "tiny-llama", "description": "Tiny LLaMA model for testing"},
-            )
             gpt_4o_mini = ensure_one(
                 session,
                 models.Model,
                 models.Model.name == "gpt-4o-mini",
-                {"name": "gpt-4o-mini", "description": "OpenAI GPT-4o-mini"},
+                {
+                    "name": "gpt-4o-mini",
+                    "description": "OpenAI GPT-4o-mini",
+                    "documentation_url": "https://platform.openai.com/docs/models/gpt-4o-mini"
+                },
             )
 
             # Versions
-            tiny_llama_v1 = ensure_one(
-                session,
-                models.ModelVersion,
-                (models.ModelVersion.model_id == tiny_llama.id) & (models.ModelVersion.version == "v1"),
-                {"model_id": tiny_llama.id, "version": "v1"},
-            )
             gpt_4o_mini_v1 = ensure_one(
                 session,
                 models.ModelVersion,
                 (models.ModelVersion.model_id == gpt_4o_mini.id) & (models.ModelVersion.version == "v1"),
-                {"model_id": gpt_4o_mini.id, "version": "v1"},
+                {
+                    "model_id": gpt_4o_mini.id, 
+                    "version": "v1",
+                    "provider": openai.provider,
+                    "provider_account_id": openai.id
+                },
             )
 
             # ----- Rate limit policies -----
@@ -221,36 +242,18 @@ def seed():
 
             # ---- permissions + policies per group + model_version ----
             ensure_perm_and_policy(session, admin_group.id, gpt_4o_mini_v1.id, True, rl_high.id)
-            ensure_perm_and_policy(session, admin_group.id, tiny_llama_v1.id, True, rl_high.id)
-
             ensure_perm_and_policy(session, devs_group.id, gpt_4o_mini_v1.id, True, rl_med.id)
-            ensure_perm_and_policy(session, devs_group.id, tiny_llama_v1.id, True, rl_med.id)
-
-            ensure_perm_and_policy(session, svcs_group.id, tiny_llama_v1.id, True, rl_low.id)
             ensure_perm_and_policy(session, svcs_group.id, gpt_4o_mini_v1.id, False, None)
 
-
-
-            # ----- Provider accounts (very simple v1) -----
-            openai_key = os["OPENAI_API_KEY"] if "OPENAI_API_KEY" in os.environ else "token-not-set"
-            ensure_one(
-                session,
-                models.ProviderAccount,
-                (models.ProviderAccount.provider == "openai") & (models.ProviderAccount.provider == "openai-local"),
-                {
-                    "provider": "openai",
-                    "api_key_hash": hash_api_key(openai_key),
-                    "username": None,
-                    "password_hash": None,
-                },
-            )
-
+            # ---- commit and print keys, pwds ----
             session.commit()
-
             print("✅ Seed complete.")
-
-            # Print newly-created raw keys (ONLY shown once)
-            # (If an API key already existed, we won’t print it again.)
+            if admin_pwd:
+                print(f"🔑 admin password (save now): {admin_pwd}")
+            if tom_pwd:
+                print(f"🔑 tom password (save now): {tom_pwd}")
+            if chatbot_svc_pwd:
+                print(f"🔑 chatbot-service password (save now): {chatbot_svc_pwd}")
             if admin_key:
                 print(f"🔑 admin API key (save now): {admin_key}")
             if tom_key:
