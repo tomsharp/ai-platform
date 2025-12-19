@@ -1,6 +1,7 @@
-import logging 
+import os 
 import uuid
 from typing import Annotated
+from contextlib import asynccontextmanager
 from time import perf_counter
 
 from fastapi import FastAPI, Depends, HTTPException, Request
@@ -8,12 +9,12 @@ from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
-import httpx
 
 from .auth import Token, issue_token, authenticate_request, Principal
-from .models import Model, ModelVersion, ProviderAccount, ProviderEnum
+from .models import Model, ModelVersion, ProviderEnum
 from .db import SessionLocal
 from .logging import get_logger
+from .providers import call_openai
 
 logger = get_logger(__name__)
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
@@ -28,53 +29,12 @@ async def require_principal(
     request: Request,
     token: str = Depends(oauth2_scheme),
 ) -> Principal:
-    principal = authenticate_request(token)  # local today, idp tomorrow
+    principal = authenticate_request(token)
     request.state.principal = principal
     return principal
 
-async def call_openai(
-    account: ProviderAccount,
-    upstream_model: str,
-    text: str,
-) -> str:
-    if not account.api_key:
-        raise HTTPException(status_code=500, detail="ProviderAccount.api_key is missing for OpenAI")
-    
-    url = "https://api.openai.com/v1/responses"
-    headers = {
-        "Authorization": f"Bearer {account.api_key}",
-        "Content-Type": "application/json",
-    }
-    payload = {"model": upstream_model, "input": text}
-
-    async with httpx.AsyncClient(timeout=60) as client:
-        r = await client.post(url, headers=headers, json=payload)
-    if r.status_code >= 400:
-        raise HTTPException(status_code=502, detail=f"OpenAI error {r.status_code}: {r.text[:500]}")
-
-    try:
-        data = r.json()
-    except ValueError as e:
-        raise HTTPException(status_code=502, detail=f"Invalid JSON from OpenAI: {r.text[:500]}") from e
-    try:
-        for item in data.get("output", []):
-            for c in item.get("content", []):
-                if c.get("type") == "output_text" and isinstance(c.get("text"), str):
-                    return c["text"]
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Invalid response from OpenAI: {r.text[:500]}") from e
-
-app = FastAPI()
-
-@app.get("/")
-def root():
-    return {"message": "Model Gateway"}
-
-@app.get("/health")
-def health():
-    return {
-        "status": "ok" if hasattr(app.state, "predictor") else "loading"
-    }
+# ---- App and Middleware ----
+app = FastAPI(title="Model Gateway", version="0.1.0")
 
 @app.middleware("http")
 async def middleware(request, call_next):
@@ -129,6 +89,19 @@ async def middleware(request, call_next):
     # add request id to response headers and return response
     response.headers["x-request-id"] = request_id
     return response
+
+
+# ---- Routes ----
+@app.get("/")
+def root():
+    return {"message": "Model Gateway"}
+
+
+@app.get("/health")
+def health():
+    return {
+        "status": "ok" if hasattr(app.state, "predictor") else "loading"
+    }
 
 
 @app.post("/token")
