@@ -8,7 +8,6 @@ import jwt
 from jwt.exceptions import InvalidTokenError, ExpiredSignatureError
 
 from fastapi import HTTPException, status, Depends
-from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel
 from sqlalchemy import select
 from pwdlib import PasswordHash
@@ -20,10 +19,9 @@ SECRET_KEY = os.environ["JWT_SECRET_KEY"]
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 password_hash = PasswordHash.recommended()
 
-class UserSchema(BaseModel):
+class Principal(BaseModel):
     id: uuid.UUID
     username: str
 
@@ -78,13 +76,13 @@ def get_encoded_jwt(user: User) -> str:
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
 
-def create_token(username: str, password: str) -> Token:
+def issue_token(username: str, password: str) -> Token:
     user = authenticate_user(username, password)
     encoded = get_encoded_jwt(user)
     return Token(access_token=encoded, token_type="bearer")
 
 
-def verify_token(token: str = Depends(oauth2_scheme)) -> UserSchema:
+def authenticate_request(token: str) -> Principal:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -113,4 +111,4 @@ def verify_token(token: str = Depends(oauth2_scheme)) -> UserSchema:
     if not user:
         raise credentials_exception
     
-    return UserSchema(id=user.id, username=user.username)
+    return Principal(id=user.id, username=user.username)
