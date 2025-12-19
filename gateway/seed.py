@@ -8,12 +8,16 @@ from datetime import datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
+from pwdlib import PasswordHash
 
 from .db import SessionLocal, Base, engine
 from . import models
 
-
 # ---------- helpers ----------
+password_hash = PasswordHash.recommended() # ensure same as auth.py
+
+def hash_password(password: str) -> str:
+    return password_hash.hash(password)
 
 def create_tables():
     Base.metadata.create_all(bind=engine)
@@ -149,7 +153,7 @@ def seed():
                 session,
                 models.User,
                 models.User.username == "tom",
-                {"username": "tom", "password_hash": None},
+                {"username": "tom", "password_hash": hash_password( "password")},
             )
             chatbot_svc = ensure_one(
                 session,
