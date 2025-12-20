@@ -1,8 +1,10 @@
 # gateway_db/db.py
+import os 
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
 
-DATABASE_URL = "postgresql+psycopg2://gateway:gateway@localhost:5432/gateway"
+DATABASE_URL = os.environ["DATABASE_URL"]
 
 engine = create_engine(
     DATABASE_URL,

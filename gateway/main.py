@@ -1,15 +1,17 @@
 import os 
 import uuid
 from typing import Annotated
-from contextlib import asynccontextmanager
 from time import perf_counter
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Depends, HTTPException, Request
+from redis.asyncio import Redis
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 
+from .rate_limiting import enforce_rate_limit
 from .auth import Token, issue_token, authenticate_request, Principal
 from .models import Model, ModelVersion, ProviderEnum
 from .db import SessionLocal
@@ -34,7 +36,21 @@ async def require_principal(
     return principal
 
 # ---- App and Middleware ----
-app = FastAPI(title="Model Gateway", version="0.1.0")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("Starting up...", extra={"event": "startup"})
+    global redis
+    REDIS_URL = os.environ["REDIS_URL"]
+    redis = Redis.from_url(REDIS_URL, encoding="utf-8", decode_responses=True)
+    await redis.ping()
+
+    yield
+
+    logger.info("Shutting down...", extra={"event": "shutdown"})
+    await redis.close() 
+
+
+app = FastAPI(lifespan=lifespan, title="Model Gateway", version="0.1.0")
 
 @app.middleware("http")
 async def middleware(request, call_next):
@@ -90,7 +106,6 @@ async def middleware(request, call_next):
     response.headers["x-request-id"] = request_id
     return response
 
-
 # ---- Routes ----
 @app.get("/")
 def root():
@@ -99,9 +114,7 @@ def root():
 
 @app.get("/health")
 def health():
-    return {
-        "status": "ok" if hasattr(app.state, "predictor") else "loading"
-    }
+    return {"status": "ok"}
 
 
 @app.post("/token")
@@ -118,7 +131,7 @@ async def infer(
     body: PredictRequest,
     principal: Annotated[Principal, Depends(require_principal)],
 ):
-    # 1) Fetch model + version + provider account
+    # fetch model version
     with SessionLocal() as session:
         mv = session.execute(
             select(ModelVersion)
@@ -133,7 +146,15 @@ async def infer(
         ).scalar_one_or_none()
     if not mv:
         raise HTTPException(status_code=404, detail="Unknown model/version")
+    
+    # enforce rate limit per model_version/user
+    await enforce_rate_limit(
+        redis=redis,
+        user_id=str(principal.id),
+        model_version_id=str(mv.id),
+    )
 
+    # route to provider
     if mv.provider == ProviderEnum.openai.value:
         output = await call_openai(
             account=mv.provider_account,
@@ -143,4 +164,5 @@ async def infer(
     else:
         raise HTTPException(status_code=400, detail=f"Unsupported provider: {mv.provider}")
     
+    # return response from inference api
     return PredictResponse(output=output)

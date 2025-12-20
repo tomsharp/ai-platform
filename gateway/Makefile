@@ -5,6 +5,11 @@ GATEWAY_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 # Parent directory (repo root)
 ROOT_DIR := $(abspath $(GATEWAY_DIR)/..)
 
+
+# FIXME
+server-up:
+	uvicorn gateway.main:app --reload --log-config gateway/logging.json --no-access-log
+
 db-up:
 	docker run --name gateway-postgres \
 		-e POSTGRES_USER=gateway \
@@ -22,3 +27,11 @@ db-down:
 	docker stop gateway-postgres || true
 	docker rm gateway-postgres || true
 	docker volume prune -f
+
+redis-up:
+	docker run --name gateway-redis -p 6379:6379 -d redis:7 || true
+
+redis-down:
+	docker stop gateway-redis || true
+	docker rm gateway-redis || true
+	docker volume prune -f	
