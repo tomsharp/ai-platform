@@ -42,7 +42,7 @@ kubectl logs <pod_name>
 
 Since our deployment is running in our private subnet as a ClusterIP we will need to use temporary port forwarding to test it from the internet (i.e, our terminal). Here we are forwarding to port 8080.
 ```
-port-forward svc/inference 8080:80 
+kubectl port-forward svc/inference 8080:80 
 ```
 Open another terminal and run tests against the /health and /predict endpoints.
 ```

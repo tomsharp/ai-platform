@@ -12,8 +12,8 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from pwdlib import PasswordHash
 
-from .db import SessionLocal
-from .models import User
+from db import SessionLocal
+from models import User
 
 SECRET_KEY = os.environ["JWT_SECRET_KEY"]
 ALGORITHM = "HS256"

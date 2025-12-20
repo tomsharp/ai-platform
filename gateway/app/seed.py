@@ -10,8 +10,8 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from pwdlib import PasswordHash
 
-from .db import SessionLocal, Base, engine
-from . import models
+from db import SessionLocal, Base, engine
+import models
 
 # ---------- helpers ----------
 password_hash = PasswordHash.recommended() # ensure same as auth.py

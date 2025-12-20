@@ -5,9 +5,9 @@ import time
 import redis
 from fastapi import HTTPException
 
-from .models import GroupModelPermission, ModelVersion, RateLimitPolicy, UserGroup
-from .db import SessionLocal
-from .logging import get_logger
+from models import GroupModelPermission, ModelVersion, RateLimitPolicy, UserGroup
+from db import SessionLocal
+from custom_logger import get_logger
 
 logger = get_logger(__name__)
 

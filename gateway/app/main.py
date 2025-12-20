@@ -11,12 +11,12 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 
-from .rate_limiting import enforce_rate_limit
-from .auth import Token, issue_token, authenticate_request, Principal
-from .models import Model, ModelVersion, ProviderEnum
-from .db import SessionLocal
-from .logging import get_logger
-from .providers import call_openai
+from rate_limiting import enforce_rate_limit
+from auth import Token, issue_token, authenticate_request, Principal
+from models import Model, ModelVersion, ProviderEnum
+from db import SessionLocal
+from custom_logger import get_logger
+from providers import call_openai
 
 logger = get_logger(__name__)
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
@@ -40,7 +40,7 @@ async def require_principal(
 async def lifespan(app: FastAPI):
     logger.info("Starting up...", extra={"event": "startup"})
     global redis
-    REDIS_URL = os.environ["REDIS_URL"]
+    REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
     redis = Redis.from_url(REDIS_URL, encoding="utf-8", decode_responses=True)
     await redis.ping()
 

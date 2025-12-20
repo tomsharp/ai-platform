@@ -3,7 +3,7 @@
   "disable_existing_loggers": false,
   "formatters": {
     "json": {
-      "()": "gateway.logging.JsonFormatter"
+      "()": "custom_logger.JsonFormatter"
     }
   },
   "handlers": {

@@ -2,7 +2,7 @@
 from fastapi import HTTPException
 import httpx
 
-from .models import Model, ModelVersion, ProviderAccount
+from models import Model, ModelVersion, ProviderAccount
 
 async def call_openai(
     account: ProviderAccount,

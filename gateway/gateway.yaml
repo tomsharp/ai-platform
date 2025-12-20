@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: "${APP_NAME}"
+  labels:
+    app: "${APP_NAME}"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: "${APP_NAME}"
+  template:
+    metadata:
+      labels:
+        app: "${APP_NAME}"
+    spec:
+      nodeSelector:
+        pool: cpu
+      containers:
+        - name: "${APP_NAME}"
+          image: "${IMAGE}"
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "4Gi"
+            limits:
+              cpu: "1"
+              memory: "8Gi"
+          env:
+            - name: REDIS_URL
+              value: "${REDIS_URL}"
+            - name: DATABASE_URL 
+              value: "${DATABASE_URL}"
+            - name: OPENAI_API_KEY
+              value: "${OPENAI_API_KEY}"
+            - name: JWT_SECRET_KEY
+              value: "${JWT_SECRET_KEY}"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000   
+            initialDelaySeconds: 60
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000 
+            initialDelaySeconds: 60
+            periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: "${APP_NAME}"
+  labels:
+    app: "${APP_NAME}"
+spec:
+  selector:
+    app: "${APP_NAME}"
+  ports:
+    - name: http
+      port: 80  
+      targetPort: 8000 
+  type: ClusterIP

@@ -1,0 +1,35 @@
+tests/
+
+# Python envs
+.venv
+venv
+env
+__pycache__
+*.py[cod]
+*.pyc
+*.pyo
+*.pyd
+*.pytest_cache
+*.mypy_cache
+
+# Git
+.git
+.gitignore
+
+# Node / JS
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Data / models / checkpoints (adjust to your repo)
+data
+datasets
+models
+checkpoints
+logs
+
+# Editors / misc
+.idea
+.vscode
+*.ipynb_checkpoints
